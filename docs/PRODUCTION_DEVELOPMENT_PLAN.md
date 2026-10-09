@@ -63,14 +63,14 @@ FlashSale 是一个面向秒杀场景的商城 MVP。用户通过 Android App �
 | 层 | 建议技术 |
 |---|---|
 | Android | Kotlin、Jetpack Compose、ViewModel、Coroutines、Retrofit/OkHttp、单元测试 |
-| Backend | Java 21 LTS、Spring Boot 3.x、Spring Security、Bean Validation |
-| Persistence | MySQL 8.x、Flyway、Spring JDBC 或 MyBatis；优先选一种主要持久化方式 |
+| Backend | JDK 17、Spring Boot 3.5.x 兼容线、Spring Security、Bean Validation |
+| Persistence | MySQL 8.x / InnoDB、MyBatis Spring Boot Starter 3.0.x、Flyway（含 MySQL 支持模块） |
 | Admin Web | Vue 3、TypeScript、Vite、Vue Router、Pinia、Element Plus |
 | API contract | REST/JSON、OpenAPI 3 |
 | Build/quality | Gradle（Android/Backend 按各自工程配置）、npm/pnpm、JUnit 5、Testcontainers（可选） |
 | Deployment | Docker Compose 用于开发/测试；生产环境需配置 HTTPS、密钥、备份和监控 |
 
-以上是推荐基线，不是已经存在的工程依赖。初始化工程时应选择兼容的稳定版本并锁定版本号。
+以上技术决策已确认，但不是已经存在的工程依赖。Spring Boot 3.5.x + MyBatis Starter 3.0.x 支持 Java 17；初始化工程时须锁定兼容的稳定补丁版本，并通过 CI 构建验证。数据库字段、事务 SQL、幂等与并发测试细节见 [数据库、事务与并发实现设计](DATABASE_TRANSACTION_DESIGN.md)。
 
 ## 3. 业务规则基线
 
@@ -521,18 +521,26 @@ API 路径与字段是契约草案。正式开发前需用 OpenAPI 固化请求 
 
 每个阶段必须通过代码评审、自动化测试和验收后再进入下一阶段。禁止在库存与订单一致性尚未验证时直接开始 UI 美化或宣称具备生产级秒杀能力。
 
-## 16. 需要在开发前确认的决策
+## 16. 已确认的技术决策与剩余事项
 
-1. 数据库选型及版本：本文建议 MySQL 8.x。
-2. 后端持久化方式：Spring JDBC 或 MyBatis 选定一种主方案，避免多种 ORM 混用。
-3. 用户登录方式、Token 生命周期、管理员初始化方式。
-4. 活动取消时，已存在待支付订单的处理政策。
-5. 商品下架后，已发布/进行中的活动是否立即停止新订单。
-6. 限购规则是否固定为同用户同活动最多一件已支付商品。
-7. 模拟支付仅用于本地/测试环境，还是作为受控演示模式部署。
-8. 是否允许管理端上传图片，及图片存储方案。
-9. 生产环境部署平台、域名、TLS、备份周期和恢复目标。
-10. 经压测确定目标并发量和性能目标；在测试前不承诺具体 QPS。
+### 16.1 已确认
+
+1. 后端使用 JDK 17，Spring Boot 3.5.x 兼容线；依赖版本必须锁定并经 CI 验证。
+2. 数据库使用 MySQL 8.x / InnoDB；后端持久化使用 MyBatis + Flyway，不混用第二套主 ORM。
+3. 身份认证采用短期 JWT access token + 数据库管理的 refresh token。
+4. 活动取消时禁止新下单，并关闭待支付订单、释放预占库存。
+5. 每个用户每个活动最多一件已支付商品，同时最多一笔待支付订单；关闭订单后可重新购买。
+6. 模拟支付仅在本地、测试或受控演示环境开放。
+7. 开发环境本地存储图片；生产环境使用持久化文件目录或对象存储。
+8. 数据库字段、唯一约束、事务 SQL、故障回滚与并发测试见 [数据库、事务与并发实现设计](DATABASE_TRANSACTION_DESIGN.md)。
+
+### 16.2 实现前仍需落实
+
+1. 管理员初始化方式与 JWT 签名密钥的安全配置。
+2. 商品下架后，已发布/进行中的活动是否立即停止新订单（实现建议：立即阻止新下单）。
+3. 生产环境部署平台、域名、TLS、备份周期和恢复目标。
+4. 通过压测确定目标并发量和性能目标；测试前不承诺具体 QPS。
+5. 活动取消采用单事务全量关闭还是规模扩大后的可恢复分批关闭；V1 需明确活动规模上限并测试事务时长。
 
 ## 17. 完成定义（Definition of Done）
 
